@@ -1,0 +1,16 @@
+.container {
+    display: flex;
+    width: 100%;
+    flex-direction: column;
+    overflow: auto;
+    border-radius: 8px;
+    padding:50px 10px;
+}
+
+.titleDiv{
+    margin: 20px 0;
+}
+
+.title{
+    font-size: 2em;
+}

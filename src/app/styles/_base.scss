@@ -1,0 +1,185 @@
+//manual de utilização do SCSS https://sass-lang.com/guide/
+$primary-color: #4CAF4F;
+$secondary-color: #019D36;
+$terciary-color: #FEE300;
+//Se trata de uma cor mais clara com menos saturação e mais brilho
+$primary-color-400: #000000;
+//Se trata da cor solida primária
+$primary-color-500: #39853b;
+//Se trata da cor mais escura com mais saturação e menos brilho
+$primary-color-600: #5ddd61;
+
+$secondary-color-500: #83C6A5;
+
+$secondary-color-600: #189E9E;
+
+$white: white;
+
+$black: black;
+
+$success: green;
+
+$error: red;
+
+$neutral: #c1c1c1;
+
+//No CSS o mixin nos ajuda a evitar repetição de código. Neste exmplo caso queira usar
+//flexbox, por padrão ele virá com as configuração descritas no parâmetro, porém 
+//caso queira outra posicionamente, é apenas utilizar 
+// @include base.display-flex($align:"sua preferencia", $justify:"sua preferencia", $direction: "sua preferencia", $gap:"sua preferencia" )
+@mixin display-flex($align: center, $justify: center, $direction: row, $gap: 0, $wrap: nowrap) {
+  display: flex;
+  align-items: $align;
+  justify-content: $justify;
+  flex-direction: $direction;
+  gap: $gap;
+  flex-wrap: $wrap;
+}
+
+%input {
+  padding: 0.55em 0.55em !important;
+  background: #fff !important;
+  border: 1px solid #757575 !important;
+  font-weight: 600 !important;
+  font-size: 1em !important;
+  -moz-border-radius: 4px !important;
+  -webkit-border-radius: 4px !important;
+  border-radius: 4px !important;
+  -moz-box-shadow: none !important;
+  -webkit-box-shadow: none !important;
+  box-shadow: none !important;
+  -o-transition: all 0.3s;
+  -moz-transition: all 0.3s;
+  -webkit-transition: all 0.3s;
+  -ms-transition: all 0.3s;
+  transition: all 0.3s;
+}
+
+%input:focus {
+  outline: 2px solid black !important;
+  box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.3) !important;
+}
+
+%input:disabled {
+  background-color: #d8d8d8 !important;
+  cursor: not-allowed;
+  color: #4d4d4d;
+}
+
+%input::placeholder {
+  color: #b0b0b0 !important;
+  font-weight: 500 !important;
+}
+
+%input::-webkit-input-placeholder {
+  color: #b0b0b0 !important;
+  font-weight: 500 !important;
+}
+
+%input::-webkit-outer-spin-button,
+%input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+%input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+%buttonPrimary {
+  min-width: 162px;
+  height: 40px;
+  border-radius: 4px;
+  border: 2px solid $primary-color;
+  background-color: $primary-color;
+  color: white;
+  font-family: "Roboto";
+  font-size: 14px;
+  font-style: normal;
+  font-weight: 700;
+}
+
+%buttonPrimary:hover {
+  background-color: $primary-color !important;
+}
+
+%buttonPrimary:disabled {
+  &:hover {
+    background-color: rgba(0, 0, 0, 0.04)!important;
+  }
+}
+
+%buttonPrimaryOutline {
+  min-width: 162px;
+  height: 40px;
+  border-radius: 4px;
+  border: 2px solid $primary-color;
+  background-color: $white;
+  color: $primary-color;
+  font-family: Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+  font-size: 14px;
+  font-style: normal;
+  font-weight: 700;
+
+  &:hover {
+    background-color: $primary-color ;
+    color: white;
+  }
+}
+
+%buttonPrimaryOutline:hover {
+  background-color: white;
+}
+
+%buttonDangerOutline {
+  @extend %buttonPrimaryOutline;
+  color: $error;
+  border: 2px solid $error;
+}
+
+@media (min-width: 640px) {
+  %containerApp {
+    max-width: 640px;
+  }
+}
+
+@media (min-width: 768px) {
+  %containerApp {
+    max-width: 768px;
+  }
+}
+
+@media (min-width: 1024px) {
+  %containerApp {
+    max-width: 1024px;
+  }
+}
+
+@media (min-width: 1280px) {
+  %containerApp {
+    max-width: 1200px;
+  }
+}
+
+@media (min-width: 1440px) {
+  %containerApp {
+    max-width: 1360px;
+  }
+}
+
+@media (min-width: 1600px) {
+  %containerApp {
+    max-width: 1440px;
+  }
+}
+
+@media (min-width: 1900px) {
+  %containerApp {
+    max-width: 1600px;
+  }
+}
+
+%containerApp {
+  width: 100%;
+  margin: auto;
+}
