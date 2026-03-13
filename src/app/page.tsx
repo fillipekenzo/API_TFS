@@ -20,12 +20,13 @@ export default function Home() {
     // Salva o usuário na sessão com a senha criptografada
     if (typeof window !== "undefined") {
       const encryptedPassword = encryptPassword(values.senha);
-      sessionStorage.setItem("tfs_user", JSON.stringify({
-        usuario: values.usuario,
-        senha: encryptedPassword,
-      }));
-      console.log("Usuário salvo na sessão:", values.usuario);
-      console.log("Senha criptografada e salva na sessão");
+      sessionStorage.setItem(
+        "tfs_user",
+        JSON.stringify({
+          usuario: values.usuario,
+          senha: encryptedPassword,
+        }),
+      );
     }
     setIsModalOpen(false);
     setLoading(true);

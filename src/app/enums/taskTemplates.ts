@@ -113,6 +113,17 @@ export const taskTemplates: { [key: string]: (data?: any) => TaskTemplate[] } =
         complexity: "Única",
       },
     ],
+    refinamento: () => [
+      {
+        title: "{dd/MM} - REFINAMENTO | {pbi} | {pbi.titulo}",
+        description:
+          "{pbi.descricao}<br><br>PBIs Relacionadas: {pbi.relacionadas}",
+        activity: "Especificar funcionalidade (Tarefa/Épico)",
+        activityId: "4414",
+        areaPath: "Área de Negócios",
+        complexity: "Complexa",
+      },
+    ],
     avaliacaopr: (data?: any) => {
       if (!data || !data.pullRequest) {
         return [];

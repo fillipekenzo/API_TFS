@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useMemo, useEffect } from "react";
-import { Form, Button, message, Select } from "antd";
+import { Form, Button, message, Select, Input } from "antd";
 import Style from "./style.module.scss";
 import SelectComponent from "../Select/Select";
 import InputComponent from "../Input/Input";
@@ -8,12 +8,11 @@ import DateSelectorComponent from "../DateSelector/DateSelector";
 import InputFileComponent from "../InputFile/InputFile";
 import ModalLoginGSI from "../ModalLoginGSI/ModalLoginGSI";
 import fetchClient from "@/app/utils/routesHelper/fetchClient";
-import { collection, contrato, project, server, tfsURL } from "@/app/config";
+import { contrato, project } from "@/app/config";
 import { processExcelFile } from "@/app/utils/processExcelFile";
 import { format } from "date-fns";
 import { taskTemplates } from "@/app/enums/taskTemplates";
 import { tipoTarefas } from "@/app/enums/tipoTarefas";
-import { integrantes } from "@/app/enums/integrantes";
 import { times } from "@/app/enums/times";
 import { areaPath } from "@/app/enums/areaPath";
 import { decryptPassword } from "@/app/utils/encryption";
@@ -233,7 +232,6 @@ export default function CadastrarTask() {
           senha,
         }),
       });
-      console.log(response);
 
       if (response.success && response.data?.value) {
         let filteredPRs = response.data.value;
@@ -260,8 +258,6 @@ export default function CadastrarTask() {
 
             return selectedDatesOnly.includes(prDateOnly);
           });
-
-          console.log(filteredPRs);
         }
 
         setPullRequests(filteredPRs);
@@ -392,7 +388,6 @@ export default function CadastrarTask() {
             value: prDateISO,
           },
         ]);
-
         return fetchClient(`/api/Task`, {
           method: "POST",
           body: bodyJson,
@@ -605,6 +600,166 @@ export default function CadastrarTask() {
                 : [taskTemplateResult];
             }
 
+            if (fv.tipoTarefa === "refinamento") {
+              const pbisRelacionadas = (fv.pbisRelacionadas ?? "").trim();
+              if (!pbisRelacionadas) {
+                message.warning(
+                  "Informe as PBIs Relacionadas para o tipo Refinamento.",
+                );
+                break;
+              }
+
+              const pbiIds = pbisRelacionadas
+                .split(/\r?\n/)
+                .map((s: string) => s.trim())
+                .filter(Boolean);
+
+              const templateRefinamento = taskTemplates.refinamento()[0];
+              let createdRefinamento = 0;
+
+              for (const pbiId of pbiIds) {
+                try {
+                  const resp = await fetchClient(`/api/GetTask?pbi=${pbiId}`, {
+                    method: "POST",
+                    body: JSON.stringify([
+                      {
+                        op: "add",
+                        path: "/fields/System.Credentials",
+                        value: {
+                          usuario: values.usuario,
+                          senha: values.senha,
+                        },
+                      },
+                    ]),
+                  });
+
+                  if (!resp?.success || !resp.data) {
+                    message.warning(
+                      `PBI ${pbiId} não encontrada ou erro na busca.`,
+                    );
+                    continue;
+                  }
+
+                  const pbiTitle = resp.data.fields?.["System.Title"] ?? "";
+                  const pbiDesc =
+                    resp.data.fields?.["System.Description"] ?? "";
+                  const title = `${formattedDate} - REFINAMENTO | ${pbiId} | ${pbiTitle}`;
+
+                  const bodyJson = JSON.stringify([
+                    {
+                      op: "add",
+                      path: "/fields/System.Credentials",
+                      value: {
+                        usuario: values.usuario,
+                        senha: values.senha,
+                      },
+                    },
+                    {
+                      op: "add",
+                      path: "/relations/-",
+                      value: {
+                        rel: "System.LinkTypes.Hierarchy-Reverse",
+                        url: `https://tfs.sgi.ms.gov.br/tfs/Global/_apis/wit/workitems/${fv.pbi}`,
+                      },
+                    },
+                    {
+                      op: "add",
+                      path: "/fields/System.Title",
+                      value: title,
+                    },
+                    {
+                      op: "add",
+                      path: "/fields/System.Description",
+                      value: pbiDesc,
+                    },
+                    {
+                      op: "add",
+                      path: "/fields/System.State",
+                      value: "To Do",
+                    },
+                    {
+                      op: "add",
+                      path: "/fields/System.AreaPath",
+                      value:
+                        fv.areaPathPBI ||
+                        `${project}\\${templateRefinamento.areaPath}`,
+                    },
+                    {
+                      op: "add",
+                      path: "/fields/System.IterationPath",
+                      value: `${project}\\Área de Negócios\\${fv.sprint}`,
+                    },
+                    {
+                      op: "add",
+                      path: "/fields/System.AssignedTo",
+                      value: fv.integrante,
+                    },
+                    {
+                      op: "add",
+                      path: "/fields/Custom.SGI.Empresa",
+                      value: contrato,
+                    },
+                    {
+                      op: "add",
+                      path: "/fields/Custom.SGI.LancamentoAtividadeID",
+                      value: templateRefinamento.activityId,
+                    },
+                    {
+                      op: "add",
+                      path: "/fields/Custom.SGI.AtividadeUST",
+                      value: templateRefinamento.activity,
+                    },
+                    {
+                      op: "add",
+                      path: "/fields/Custom.SGI.ComplexidadeUST",
+                      value: templateRefinamento.complexity,
+                    },
+                    {
+                      op: "add",
+                      path: "/fields/System.CreatedDate",
+                      value: dISO,
+                    },
+                    {
+                      op: "add",
+                      path: "/fields/Custom.SGI.DataExecucao",
+                      value: dISO,
+                    },
+                  ]);
+
+                  const taskResp = await fetchClient(`/api/Task`, {
+                    method: "POST",
+                    body: bodyJson,
+                  });
+
+                  if (taskResp?.success) {
+                    createdRefinamento++;
+                  }
+                } catch {
+                  message.warning(`Erro ao processar PBI ${pbiId}.`);
+                }
+              }
+
+              if (createdRefinamento > 0) {
+                message.success(
+                  `${createdRefinamento} tarefa(s) de refinamento criada(s).`,
+                );
+              }
+              if (createdRefinamento < pbiIds.length) {
+                message.warning(
+                  `${pbiIds.length - createdRefinamento} PBI(s) não geraram task (não encontrada ou erro).`,
+                );
+              }
+              break;
+            }
+
+            const selectedWorkItem = workItems.find(
+              (wi: any) => String(wi.id) === String(fv.pbi),
+            );
+            const pbiTitulo = selectedWorkItem?.fields?.["System.Title"] ?? "";
+            const pbiDescricao =
+              selectedWorkItem?.fields?.["System.Description"] ?? "";
+            const pbisRelacionadas = (fv.pbisRelacionadas ?? "").trim();
+
             for (const t of tasks) {
               const taskData = {
                 ...t,
@@ -613,12 +768,15 @@ export default function CadastrarTask() {
                   .replace(/\{dda\/MMa\}/g, `(${previousDay})`)
                   .replace("{dd/MM}", formattedDate)
                   .replace("{pbi}", fv.pbi)
+                  .replace("{pbi.titulo}", pbiTitulo)
                   .replace("{sprint}", fv.sprint),
                 description: t.description
                   .replace("{dd/MM/yyyy}", fullDate)
                   .replace(/\{dda\/MMa\}/g, `(${previousDay})`)
                   .replace("{dd/MM}", formattedDate)
                   .replace("{pbi}", fv.pbi)
+                  .replace("{pbi.descricao}", pbiDescricao)
+                  .replace("{pbi.relacionadas}", pbisRelacionadas)
                   .replace("{sprint}", fv.sprint),
               };
 
@@ -700,8 +858,6 @@ export default function CadastrarTask() {
                   value: dISO,
                 },
               ]);
-
-              console.log(bodyJson);
 
               const response = await fetchClient(`/api/Task`, {
                 method: "POST",
@@ -828,6 +984,27 @@ export default function CadastrarTask() {
               />
             </Form.Item>
           </>
+        )}
+
+        {tipoTarefa === "refinamento" && (
+          <Form.Item
+            name="pbisRelacionadas"
+            label="PBIs Relacionadas"
+            rules={[
+              {
+                required: true,
+                message: "Informe as PBIs relacionadas",
+              },
+            ]}
+          >
+            <Input.TextArea
+              placeholder="Digite um ID de PBI por linha (ex.: 1243623, 1243624, 1243921)"
+              allowClear
+              className="w-full"
+              rows={6}
+              style={{ resize: "vertical" }}
+            />
+          </Form.Item>
         )}
 
         {tipoTarefa === "personalizado" && (
