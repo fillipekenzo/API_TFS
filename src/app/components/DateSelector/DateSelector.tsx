@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 
@@ -22,20 +22,16 @@ export default function DateSelectorComponent({
         if (prevDates.some((d) => d.getTime() === date.getTime())) {
           updatedDates = prevDates.filter(
             (d) => d.getTime() !== date.getTime(),
-          ); // Remove se já existir
+          );
         } else {
-          updatedDates = [...prevDates, date]; // Adiciona a nova data
+          updatedDates = [...prevDates, date];
         }
 
+        onChange?.(updatedDates);
         return updatedDates;
       });
     }
   };
-
-  useEffect(() => {
-    // Notifica o pai somente quando as datas mudam. Não incluir onChange nas deps para evitar
-    onChange?.(selectedDates);
-  }, [selectedDates]);
 
   return (
     <div className="flex flex-col gap-2 w-[300px]">

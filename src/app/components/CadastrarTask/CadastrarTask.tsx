@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import { Form, Button, message, Select, Input } from "antd";
 import Style from "./style.module.scss";
 import SelectComponent from "../Select/Select";
@@ -38,6 +38,7 @@ export default function CadastrarTask() {
     [],
   );
   const [workItems, setWorkItems] = useState<any[]>([]);
+  const pendingSubmitRef = useRef<any>(null);
 
   const tipoTarefa = Form.useWatch("tipoTarefa", form);
   const selectedSprint = Form.useWatch("sprint", form);
@@ -171,12 +172,52 @@ export default function CadastrarTask() {
   }, []);
 
   const handleSubmit = async (values: any) => {
-    setFormValues(values);
+    const dates =
+      Array.isArray(values.data) && values.data.length > 0
+        ? values.data
+        : selectedDates;
+
+    let payload: any = { ...values, data: dates };
+    const tipoTarefaValue = values.tipoTarefa || tipoTarefa;
+
+    if (tipoTarefaValue === "personalizado") {
+      const file =
+        values.arquivo instanceof File ? values.arquivo : null;
+      if (!file) {
+        message.warning("Selecione um arquivo para tarefas personalizadas.");
+        return;
+      }
+      try {
+        const tasks = await processExcelFile(file, {});
+        if (!tasks.length) {
+          message.warning(
+            "Nenhuma tarefa encontrada no arquivo. Verifique o cabeçalho e as linhas.",
+          );
+          return;
+        }
+        setTaskExcel(tasks);
+        payload = { ...payload, excelTasks: tasks };
+      } catch {
+        message.error(
+          "Erro ao ler o arquivo. Verifique se é Excel (.xlsx) ou CSV válido.",
+        );
+        return;
+      }
+    }
+
+    if (!dates.length) {
+      message.warning("Selecione pelo menos uma data.");
+      return;
+    }
+
+    payload.tipoTarefa = tipoTarefaValue;
+    pendingSubmitRef.current = payload;
+    setFormValues(payload);
     setLoading(true);
 
     try {
       if (savedUser) {
-        await handleLoginSuccess(savedUser, values);
+        await handleLoginSuccess(savedUser, payload);
       } else {
         setIsModalOpen(true);
       }
@@ -421,6 +462,18 @@ export default function CadastrarTask() {
           fetchPullRequests(values.usuario, values.senha, fv),
         ]);
       } else {
+        let excelTasks: any[] | null =
+          fv.tipoTarefa === "personalizado"
+            ? fv.excelTasks ?? taskExcel
+            : null;
+
+        if (fv.tipoTarefa === "personalizado" && !excelTasks?.length) {
+          message.warning(
+            "Carregue um arquivo com tarefas (colunas: title, description, pbi, activityId, activity, complexity).",
+          );
+          return;
+        }
+
         const dates = fv.data
           .slice()
           .sort(
@@ -441,45 +494,31 @@ export default function CadastrarTask() {
           const previousDay = format(previousDayDate, "dd/MM");
           const dISO = date.toISOString();
 
-          if (taskExcel != null) {
-            const promises = taskExcel.map((t: any) => {
-              const part = t.title
+          if (
+            fv.tipoTarefa === "personalizado" &&
+            excelTasks != null &&
+            excelTasks.length > 0
+          ) {
+            const areaPathValue =
+              fv.areaPathPBI || `${project}\\Área de Negócios`;
+            const iterationPathValue = `${fv.areaPathPBI || project}\\${fv.sprint}`;
+
+            const results: Awaited<ReturnType<typeof fetchClient>>[] = [];
+
+            for (const t of excelTasks) {
+              const title = (t.title ?? "")
                 .replace("{dd/MM/yyyy}", fullDate)
                 .replace(/\{dda\/MMa\}/g, `(${previousDay})`)
                 .replace("{dd/MM}", formattedDate)
-                .replace("{pbi}", t.pbi)
+                .replace("{pbi}", String(t.pbi ?? ""))
                 .replace("{sprint}", fv.sprint);
 
-              let taskData = {
-                ...t,
-                title: `${part}`,
-              };
-
-              taskData.description = taskData.description
+              const description = (t.description ?? "")
                 .replace("{dd/MM/yyyy}", fullDate)
                 .replace(/\{dda\/MMa\}/g, `(${previousDay})`)
                 .replace("{dd/MM}", formattedDate)
-                .replace("{pbi}", taskData.pbi)
+                .replace("{pbi}", String(t.pbi ?? ""))
                 .replace("{sprint}", fv.sprint);
-
-              fetchClient(`/api/GetTask?pbi=${taskData.pbi}`, {
-                method: "POST",
-                body: JSON.stringify([
-                  {
-                    op: "add",
-                    path: "/fields/System.Credentials",
-                    value: {
-                      usuario: values.usuario,
-                      senha: values.senha,
-                    },
-                  },
-                ]),
-              }).then((resp) => {
-                const result = resp.data;
-                const areaPathFromPbi = result.fields["System.AreaPath"];
-                setAreaPathPBI(areaPathFromPbi);
-                form.setFieldValue("areaPathPBI", areaPathFromPbi);
-              });
 
               const bodyJson = JSON.stringify([
                 {
@@ -495,18 +534,18 @@ export default function CadastrarTask() {
                   path: "/relations/-",
                   value: {
                     rel: "System.LinkTypes.Hierarchy-Reverse",
-                    url: `https://tfs.sgi.ms.gov.br/tfs/Global/_apis/wit/workitems/${taskData.pbi}`,
+                    url: `https://tfs.sgi.ms.gov.br/tfs/Global/_apis/wit/workitems/${t.pbi}`,
                   },
                 },
                 {
                   op: "add",
                   path: "/fields/System.Title",
-                  value: taskData.title,
+                  value: title,
                 },
                 {
                   op: "add",
                   path: "/fields/System.Description",
-                  value: taskData.description,
+                  value: description,
                 },
                 {
                   op: "add",
@@ -516,12 +555,12 @@ export default function CadastrarTask() {
                 {
                   op: "add",
                   path: "/fields/System.AreaPath",
-                  value: `${areaPathPBI}`,
+                  value: areaPathValue,
                 },
                 {
                   op: "add",
                   path: "/fields/System.IterationPath",
-                  value: `${project}${areaPathPBI.includes("Área de Negócios") ? "\\Área de Negócios" : ""}\\${fv.sprint}`,
+                  value: iterationPathValue,
                 },
                 {
                   op: "add",
@@ -536,17 +575,17 @@ export default function CadastrarTask() {
                 {
                   op: "add",
                   path: "/fields/Custom.SGI.LancamentoAtividadeID",
-                  value: taskData.activityId,
+                  value: t.activityId,
                 },
                 {
                   op: "add",
                   path: "/fields/Custom.SGI.AtividadeUST",
-                  value: taskData.activity,
+                  value: t.activity,
                 },
                 {
                   op: "add",
                   path: "/fields/Custom.SGI.ComplexidadeUST",
-                  value: taskData.complexity,
+                  value: t.complexity,
                 },
                 {
                   op: "add",
@@ -560,13 +599,12 @@ export default function CadastrarTask() {
                 },
               ]);
 
-              return fetchClient(`/api/Task`, {
+              const response = await fetchClient(`/api/Task`, {
                 method: "POST",
                 body: bodyJson,
               });
-            });
-
-            const results = await Promise.all(promises);
+              results.push(response);
+            }
 
             const success = results.every((resp) => resp?.success);
 
@@ -575,7 +613,7 @@ export default function CadastrarTask() {
             } else {
               message.error("Erro ao cadastrar algumas tasks.");
             }
-          } else {
+          } else if (fv.tipoTarefa !== "personalizado") {
             let tasks: any[];
             if (fv.tipoTarefa === "feedback-colaborador") {
               const colaboradores = Array.isArray(fv.colaboradores)
@@ -881,13 +919,53 @@ export default function CadastrarTask() {
     }
   };
 
-  const handleFileUpload = async (file: File) => {
-    const additionalParams = {};
+  useEffect(() => {
+    if (tipoTarefa !== "personalizado") {
+      setTaskExcel(null);
+    }
+  }, [tipoTarefa]);
+
+  const processArquivo = async (file: File | null) => {
+    if (!file) {
+      setTaskExcel(null);
+      return;
+    }
     try {
-      const message = await processExcelFile(file, additionalParams);
-      setTaskExcel(message);
-    } catch (error) {}
+      const tasks = await processExcelFile(file, {});
+      if (tasks.length === 0) {
+        setTaskExcel(null);
+        message.warning(
+          "Nenhuma tarefa encontrada no arquivo. Verifique o cabeçalho e as linhas preenchidas.",
+        );
+        return;
+      }
+      setTaskExcel(tasks);
+      message.success(`${tasks.length} tarefa(s) carregada(s) do arquivo.`);
+    } catch {
+      setTaskExcel(null);
+      message.error(
+        "Erro ao ler o arquivo. Use Excel (.xlsx) ou CSV com colunas: title, description, pbi, activityId, activity, complexity.",
+      );
+    }
   };
+
+  const ArquivoUpload = ({
+    value,
+    onChange,
+  }: {
+    value?: File | null;
+    onChange?: (file: File | null) => void;
+  }) => (
+    <InputFileComponent
+      name="Arquivo"
+      accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel"
+      value={value ?? undefined}
+      onChange={async (file) => {
+        onChange?.(file);
+        await processArquivo(file);
+      }}
+    />
+  );
 
   return (
     <div className={Style.container}>
@@ -1010,6 +1088,7 @@ export default function CadastrarTask() {
         {tipoTarefa === "personalizado" && (
           <Form.Item
             name="arquivo"
+            getValueFromEvent={(file: File | null) => file}
             rules={[
               {
                 required: true,
@@ -1017,10 +1096,7 @@ export default function CadastrarTask() {
               },
             ]}
           >
-            <InputFileComponent
-              name="Arquivo"
-              accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel"
-            />
+            <ArquivoUpload />
           </Form.Item>
         )}
 
@@ -1043,14 +1119,24 @@ export default function CadastrarTask() {
           rules={[
             {
               required: true,
-              validator: (_, value) =>
-                selectedDates.length > 0
+              validator: (_, value) => {
+                const hasDates =
+                  (Array.isArray(value) && value.length > 0) ||
+                  selectedDates.length > 0;
+                return hasDates
                   ? Promise.resolve()
-                  : Promise.reject("Selecione pelo menos uma data."),
+                  : Promise.reject("Selecione pelo menos uma data.");
+              },
             },
           ]}
         >
-          <DateSelectorComponent name="Data" onChange={setSelectedDates} />
+          <DateSelectorComponent
+            name="Data"
+            onChange={(dates) => {
+              setSelectedDates(dates);
+              form.setFieldValue("data", dates);
+            }}
+          />
         </Form.Item>
 
         <Form.Item className="col-span-3 flex justify-center">
@@ -1068,7 +1154,12 @@ export default function CadastrarTask() {
       <ModalLoginGSI
         visible={isModalOpen}
         setVisibleFalse={() => setIsModalOpen(false)}
-        onFinish={handleLoginSuccess}
+        onFinish={(credentials: { usuario: string; senha: string }) =>
+          handleLoginSuccess(
+            credentials,
+            pendingSubmitRef.current ?? formValues,
+          )
+        }
       />
     </div>
   );

@@ -1,23 +1,34 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { FaPaperclip } from "react-icons/fa";
 
 interface InputFileProps {
   name: string;
   accept: string;
-  value?: File;
+  value?: File | null;
   onChange?: (file: File | null) => void;
 }
 
-export default function InputFileComponent({ name, accept, value, onChange }: InputFileProps) {
+export default function InputFileComponent({
+  name,
+  accept,
+  value,
+  onChange,
+}: InputFileProps) {
   const [fileName, setFileName] = useState<string | null>(null);
 
-  const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      setFileName(file.name);
-      onChange?.(file);
+  useEffect(() => {
+    if (value instanceof File) {
+      setFileName(value.name);
+    } else if (!value) {
+      setFileName(null);
     }
+  }, [value]);
+
+  const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0] ?? null;
+    setFileName(file?.name ?? null);
+    onChange?.(file);
   };
 
   const handleReset = () => {
@@ -42,10 +53,11 @@ export default function InputFileComponent({ name, accept, value, onChange }: In
       </div>
       {fileName && (
         <button
+          type="button"
           onClick={handleReset}
           className="text-sm text-red-500 underline cursor-pointer"
         >
-          Remover arquivo 
+          Remover arquivo
         </button>
       )}
     </div>
